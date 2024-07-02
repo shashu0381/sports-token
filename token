@@ -1,0 +1,69 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
+import "hardhat/console.sol";
+
+contract SportsToken is ERC20, Ownable, ERC20Burnable {
+    event LogMessage(string message);
+
+    struct SportsEquipment {
+        string product;
+        uint256 cost;
+        uint256 inventory;
+    }
+
+    mapping(string => SportsEquipment) public sportsEquipments;
+    mapping(address => string[]) public redeemedProducts; // Track redeemed products for each user
+    mapping(address => uint256) public userTokenBalances;
+
+    constructor() ERC20("SportsToken", "SPT") Ownable(msg.sender) {
+        sportsEquipments["Ball"] = SportsEquipment("Ball", 500, 30);
+        sportsEquipments["Bat"] = SportsEquipment("Bat", 1000, 20);
+        sportsEquipments["Stumps"] = SportsEquipment("Stumps", 1500, 15);
+        sportsEquipments["Bails"] = SportsEquipment("Bails", 2000, 25);
+    }
+
+    function mint(address recipientAddress, uint256 tokenAmount) public onlyOwner {
+        _mint(recipientAddress, tokenAmount);
+    }
+
+    function burn_(uint256 tokenAmount) public payable {
+        require(balanceOf(msg.sender) >= tokenAmount, "Insufficient balance to burn tokens");
+        _burn(msg.sender, tokenAmount);
+        emit LogMessage("Burned tokens");
+    }
+
+    function transfer_(address recipientAddress, uint256 tokenAmount) external {
+        require(balanceOf(msg.sender) >= tokenAmount, "Insufficient balance to transfer tokens");
+        _transfer(msg.sender, recipientAddress, tokenAmount);
+    }
+
+    function redeemSportsEquipment(string memory equipmentType, uint256 quantity) external payable {
+        require(bytes(equipmentType).length > 0, "Invalid product type");
+        require(quantity > 0, "Quantity must be greater than zero");
+        require(balanceOf(msg.sender) >= sportsEquipments[equipmentType].cost * quantity, "Insufficient funds to redeem equipment");
+        
+        SportsEquipment storage equipment = sportsEquipments[equipmentType];
+        require(equipment.inventory >= quantity, "Insufficient equipment quantity");
+
+        _burn(msg.sender, equipment.cost * quantity);
+        userTokenBalances[msg.sender] += quantity;
+        equipment.inventory -= quantity;
+
+        redeemedProducts[msg.sender].push(equipment.product); // Record redeemed product
+        emit LogMessage("Redeemed sports equipment");
+    }
+
+    function MyRedeemedProducts(address recipient) external view returns (string[] memory) {
+        return redeemedProducts[recipient];
+    }
+    
+    
+    function modifyEquipmentQuantity(string memory equipmentType, uint256 newQuantity) external onlyOwner {
+        require(sportsEquipments[equipmentType].cost != 0, "Invalid equipment type");
+        sportsEquipments[equipmentType].inventory = newQuantity;
+    }
+}
